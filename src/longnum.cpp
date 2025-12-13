@@ -456,14 +456,99 @@ namespace longnum {
         return res;
     }
 
+    std::string LongNum::to_string(unsigned decimal_precision) const {
+        const LongNum base = 10;  // TODO: make it work with any base
+        std::string res;
+        LongNum whole = this->truncate();
+        while (whole != 0) {
+            LongNum q = whole / base;
+            LongNum r = whole - q * base;
+            if (r == 0) {
+                res += '0';
+            } else {
+                res += std::to_string(r.limbs.front());
+            }
+            whole = q;
+        }
+        if (res.empty()) {
+            res += '0';
+        }
+        if (is_negative) {
+            res += '-';
+        }
+        std::ranges::reverse(res);
+        if (decimal_precision == 0) {
+            return res;
+        }
+        LongNum frac = this->frac();
+        if (frac == 0) {
+            return res;
+        }
+        res += '.';
+        unsigned cnt = 0;
+        while (frac != 0 && cnt++ < decimal_precision) {
+            frac *= base;
+            LongNum r = frac.truncate();
+            frac -= r;
+            if (r == 0) {
+                res += '0';
+            } else {
+                res += std::to_string(r.limbs.front());
+            }
+        }
+        return res;
+    }
+
+    LongNum LongNum::from_string(std::string str, const std::optional<unsigned>& precision) {
+        const LongNum base = 10;  // TODO: make it work with any base
+        if (str.empty()) {
+            throw std::invalid_argument("Invalid string");
+        }
+        LongNum res = 0;
+        if (str.front() == '-') {
+            str.erase(str.begin());
+            res.is_negative = true;
+        }
+        if (str.front() == '+') {
+            str.erase(str.begin());
+        }
+        const size_t point_pos = str.find_first_of(".,");
+        unsigned decimal_exp;
+        if (point_pos == std::string::npos) {
+            decimal_exp = 0;
+        } else {
+            decimal_exp = str.size() - point_pos - 1;
+            str.erase(str.begin() + point_pos);
+        }
+        if (str.find_first_of(".,") != std::string::npos) {
+            throw std::invalid_argument("Invalid string");
+        }
+        for (const auto c: str) {
+            if (c < '0' || c > '9') {
+                throw std::invalid_argument("Invalid string");
+            }
+        }
+        for (const auto digit: str) {
+            res *= base;
+            res += digit - '0';
+        }
+        if (decimal_exp == 0) {
+            res.set_precision(precision.value_or(0));
+        } else {
+            res.set_precision(precision.value_or(std::max(decimal_exp * 4, DEFAULT_PRECISION)));
+        }
+        res /= base.pow(decimal_exp);
+        return res;
+    }
+
     std::istream& operator>>(std::istream& stream, LongNum& number) {
         std::string str;
         stream >> str;
-        number = LongNum::from_binary_string(str);
+        number = LongNum::from_string(str);
         return stream;
     }
 
     std::ostream& operator<<(std::ostream& stream, const LongNum& number) {
-        return stream << number.to_binary_string();
+        return stream << number.to_string();
     }
 }
