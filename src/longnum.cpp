@@ -236,6 +236,37 @@ namespace longnum {
         return lhs;
     }
 
+    LongNum& LongNum::operator*=(const LongNum& rhs) {
+        *this = *this * rhs;
+        return *this;
+    }
+
+    LongNum operator*(const LongNum& lhs, const LongNum& rhs) {
+        if (lhs == 0 || rhs == 0) {
+            return (0_longnum).with_precision(std::max(lhs.exp, rhs.exp));
+        }
+        LongNum res;
+        res.exp = lhs.exp + rhs.exp;
+        res.limbs.resize(lhs.limbs.size() + rhs.limbs.size());
+        for (size_t i = 0; i < lhs.limbs.size(); i++) {
+            uint32_t carry = 0;
+            for (size_t j = 0; j < rhs.limbs.size() || carry; j++) {
+                if (j < rhs.limbs.size()) {
+                    const uint64_t cur = (uint64_t)lhs.limbs[i] * rhs.limbs[j] + res.limbs[i + j] + carry;
+                    res.limbs[i + j] = cur;
+                    carry = cur >> BASE;
+                } else {
+                    res.limbs[i + j] += carry;
+                    carry = 0;
+                }
+            }
+        }
+        res.remove_leading_zeros();
+        res.set_precision(std::max(lhs.exp, rhs.exp));
+        res.is_negative = lhs.is_negative ^ rhs.is_negative;
+        return res;
+    }
+
     void LongNum::set_precision(const unsigned precision) {
         if (exp < precision) {
             *this <<= precision - exp;
