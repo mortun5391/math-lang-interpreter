@@ -49,6 +49,9 @@ namespace longnum {
         LongNum& operator*=(const LongNum& rhs);
         friend LongNum operator*(const LongNum& lhs, const LongNum& rhs);
 
+        LongNum& operator/=(const LongNum& rhs);
+        friend LongNum operator/(LongNum lhs, const LongNum& rhs);
+
         void set_precision(unsigned precision);
         LongNum with_precision(unsigned precision) const;
 

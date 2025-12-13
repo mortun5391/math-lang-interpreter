@@ -267,6 +267,106 @@ namespace longnum {
         return res;
     }
 
+    LongNum& LongNum::operator/=(const LongNum& rhs) {
+        *this = *this / rhs;
+        return *this;
+    }
+
+    LongNum operator/(LongNum lhs, const LongNum& rhs) {
+        auto div_one_digit = [](const LongNum& a, const LongNum& b, LongNum& res) {
+            // divide a / b as integers (ignoring exp and sign), len(b) = 1
+
+            res = a;
+            unsigned carry = 0;
+            for (size_t i = res.limbs.size() - 1; i != (size_t)-1; i--) {
+                const uint64_t cur = res.limbs[i] + ((uint64_t)carry << BASE);
+                res.limbs[i] = cur / b.limbs.front();
+                carry = cur - res.limbs[i] * b.limbs.front();
+            }
+        };
+
+        auto long_div = [](LongNum u_num, LongNum v_num, LongNum& res) {
+            // source: https://skanthak.hier-im-netz.de/division.html
+            // divide a / b as integers (ignoring exp and sign), a >= b, len(b) >= 2
+
+            const size_t m = u_num.limbs.size(), n = v_num.limbs.size();  // initial sizes
+            const unsigned s = std::countl_zero(v_num.limbs.back());  // normalization (make first bit of divisor set to 1)
+            u_num <<= s;
+            v_num <<= s;
+            std::vector<uint32_t>& u = u_num.limbs;
+            if (u.size() == m) {
+                u.push_back(0);
+            }
+            const std::vector<uint32_t>& v = v_num.limbs;
+
+            res.limbs.resize(m - n + 1);
+            std::vector<uint32_t>& q = res.limbs;
+            for (size_t j = m - n; j != (size_t)-1; j--) {
+                uint64_t qhat = (((uint64_t)u[j + n] << BASE) | u[j + n - 1]) / v[n - 1];
+                uint64_t rhat = (((uint64_t)u[j + n] << BASE) | u[j + n - 1]) - qhat * v[n - 1];
+                for (size_t i = 0; i < 2; i++) {
+                    if (qhat >= (1ull << BASE) || qhat * v[n - 2] > ((rhat << BASE) | u[j + n - 2])) {
+                        qhat--;
+                        rhat += v[n - 1];
+                        if (rhat >= (1ull << BASE)) {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+                int64_t t;
+                uint64_t carry = 0;
+                for (size_t i = 0; i < n; i++) {
+                    const uint64_t prod = qhat * v[i];
+                    t = (int64_t)(u[i + j] - carry - (prod & UINT32_MAX));
+                    u[i + j] = t;
+                    carry = (prod >> BASE) - (t >> BASE);
+                }
+                t = (int64_t)(u[j + n] - carry);
+                u[j + n] = t;
+
+                q[j] = qhat;
+                if (t < 0) {  // if we subtracted too much, add back
+                    q[j]--;
+                    carry = 0;
+                    for (size_t i = 0; i < n; i++) {
+                        t = (int64_t)(u[i + j] + v[i] + carry);
+                        u[i + j] = t;
+                        carry = t >> BASE;
+                    }
+                    u[j + n] += carry;
+                }
+            }
+        };
+
+        if (rhs == 0) {
+            throw std::invalid_argument("Division by zero");
+        }
+        if (lhs == 0) {
+            return (0_longnum).with_precision(std::max(lhs.exp, rhs.exp));
+        }
+        if (lhs.exp < rhs.exp) {
+            lhs <<= 2 * rhs.exp - lhs.exp;
+        } else {
+            lhs <<= rhs.exp;
+        }
+        if (lhs.limbs.size() < rhs.limbs.size() ||
+            (lhs.limbs.size() == rhs.limbs.size() && lhs.limbs.back() < rhs.limbs.back())) {
+            return (0_longnum).with_precision(std::max(lhs.exp, rhs.exp));
+        }
+        LongNum res;
+        if (rhs.limbs.size() == 1) {
+            div_one_digit(lhs, rhs, res);
+        } else {
+            long_div(lhs, rhs, res);
+        }
+        res.exp = std::max(lhs.exp, rhs.exp);
+        res.is_negative = lhs.is_negative ^ rhs.is_negative;
+        res.remove_leading_zeros();
+        return res;
+    }
+
     void LongNum::set_precision(const unsigned precision) {
         if (exp < precision) {
             *this <<= precision - exp;
