@@ -399,6 +399,31 @@ namespace longnum {
         }
     }
 
+    LongNum LongNum::pow(unsigned power) const {
+        LongNum res = 1, a = *this;
+        while (power) {
+            if (power & 1) {
+                res *= a;
+            }
+            a *= a;
+            power >>= 1;
+        }
+        return res;
+    }
+
+    LongNum LongNum::sqrt() const {
+        if (*this < 0) {
+            throw std::invalid_argument("Square root of negative number is undefined");
+        }
+        LongNum x0 = 0, x1 = 1;
+        while (x0 != x1) {
+            x0 = x1;
+            x1 += *this / x1;
+            x1 >>= 1;
+        }
+        return x1;
+    }
+
     std::string LongNum::to_binary_string() const {
         if (*this == 0) {
             return "0";

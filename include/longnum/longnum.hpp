@@ -55,6 +55,9 @@ namespace longnum {
         void set_precision(unsigned precision);
         LongNum with_precision(unsigned precision) const;
 
+        LongNum pow(unsigned power) const;
+        LongNum sqrt() const;
+
         std::string to_binary_string() const;
         static LongNum from_binary_string(std::string str);
 
